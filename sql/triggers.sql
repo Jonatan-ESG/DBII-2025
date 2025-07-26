@@ -76,9 +76,70 @@ GO
 
 INSERT INTO inv.tipo_documento (tipo_documento)
 VALUES ('Nuevo Tipo Tres'), ('Nuevo Tipo Dos')
+GO
+
+CREATE OR ALTER TRIGGER inv.tgr_actualiza_codigo_tipo_documento ON inv.tipo_documento
+INSTEAD OF UPDATE AS
+BEGIN
+
+    UPDATE tp SET 
+        tp.tipo_documento = i.tipo_documento,
+        tp.tipo_documento_cd = LEFT(UPPER(REPLACE(i.tipo_documento, ' ', '_')), 50)
+    FROM inv.tipo_documento tp
+    JOIN inserted i on tp.tipo_documento_id = i.tipo_documento_id
+    
+END
+GO
 
 UPDATE inv.tipo_documento
-SET tipo_documento = 'Nota de debito'
-where tipo_documento_id = 3
+SET tipo_documento = 'Factura'
+where tipo_documento_id = 2
 
-select * from inv.tipo_documento
+SELECT * FROM inv.tipo_documento
+GO
+
+DISABLE TRIGGER inv.tgr_actualiza_codigo_tipo_documento ON inv.tipo_documento
+GO
+
+ENABLE TRIGGER inv.tgr_actualiza_codigo_tipo_documento ON inv.tipo_documento
+GO
+
+CREATE SCHEMA  system_logs 
+GO
+
+CREATE TABLE system_logs.insercion (
+    fecha_creacion DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    registros VARCHAR(MAX)
+)
+GO
+
+CREATE OR ALTER TRIGGER inv.tgr_insercion_categoria ON inv.categoria
+AFTER INSERT AS
+BEGIN
+    INSERT INTO system_logs.insercion (registros)
+    SELECT 
+        CONCAT('Se agregó una nueva categoria con el ID: ', categoria_id, ' y la descripción: ', categoria) AS registro
+    FROM inserted
+END
+GO
+
+SELECT * FROM inv.categoria
+GO
+
+INSERT INTO inv.categoria (categoria)
+VALUES ('Productos Varios')
+GO
+
+SELECT * FROM system_logs.insercion
+GO
+
+ALTER TABLE system_logs.insercion
+ADD usuario VARCHAR(100) default ORIGINAL_LOGIN()
+GO
+
+INSERT INTO inv.categoria (categoria)
+VALUES ('Descuentos Verano')
+GO
+
+SELECT * FROM system_logs.insercion
+GO
