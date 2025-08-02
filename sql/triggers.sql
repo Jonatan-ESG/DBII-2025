@@ -82,11 +82,11 @@ CREATE OR ALTER TRIGGER inv.tgr_actualiza_codigo_tipo_documento ON inv.tipo_docu
 INSTEAD OF UPDATE AS
 BEGIN
 
-    UPDATE tp SET 
-        tp.tipo_documento = i.tipo_documento,
-        tp.tipo_documento_cd = LEFT(UPPER(REPLACE(i.tipo_documento, ' ', '_')), 50)
-    FROM inv.tipo_documento tp
-    JOIN inserted i on tp.tipo_documento_id = i.tipo_documento_id
+    UPDATE td SET 
+        td.tipo_documento = i.tipo_documento,
+        td.tipo_documento_cd = LEFT(UPPER(REPLACE(i.tipo_documento, ' ', '_')), 50)
+    FROM inv.tipo_documento as td
+    JOIN inserted as i on td.tipo_documento_id = i.tipo_documento_id
     
 END
 GO
