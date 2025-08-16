@@ -113,3 +113,5 @@ BEGIN
 END 
 
 EXEC cli.sp_validar_tarjeta_vigente '2045-05-01', 1
+
+SELECT * FROM cli.clientes
