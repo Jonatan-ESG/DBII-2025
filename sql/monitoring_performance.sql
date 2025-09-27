@@ -234,3 +234,61 @@ BEGIN
   ORDER BY b.categoria_id, x.ingreso DESC;
 END
 GO
+
+
+/* Devuelve el top 10 de esperas "relevantes" por categoria */
+
+;WITH waits AS (
+  SELECT wait_type,
+         wait_time_ms/1000.0 AS wait_s,
+         signal_wait_time_ms/1000.0 AS signal_s,
+         100.0*signal_wait_time_ms/NULLIF(wait_time_ms,0) AS signal_pct
+  FROM sys.dm_os_wait_stats
+  WHERE wait_type NOT IN ('SLEEP_TASK','SLEEP_SYSTEMTASK','BROKER_TASK_STOP','BROKER_TO_FLUSH',
+    'SQLTRACE_BUFFER_FLUSH','XE_TIMER_EVENT','XE_DISPATCHER_WAIT','BROKER_EVENTHANDLER',
+    'FT_IFTS_SCHEDULER_IDLE_WAIT','BROKER_RECEIVE_WAITFOR','HADR_FILESTREAM_IOMGR_IOCOMPLETION',
+    'HADR_WORK_QUEUE','HADR_CLUSAPI_CALL','DIRTY_PAGE_POLL','SP_SERVER_DIAGNOSTICS_SLEEP',
+    'XE_LIVE_TARGET_TVF','LOGMGR_QUEUE','CHECKPOINT_QUEUE','DISPATCHER_QUEUE_SEMAPHORE',
+    'CLR_AUTO_EVENT','SOS_WORK_DISPATCHER','QDS_ASYNC_QUEUE','QDS_PERSIST_TASK_MAIN_LOOP_SLEEP',
+    'ONDEMAND_TASK_QUEUE','SQLTRACE_INCREMENTAL_FLUSH_SLEEP')
+)
+SELECT TOP (10) *, 
+  CASE 
+    WHEN wait_type LIKE 'PAGEIOLATCH%' THEN 'IO'
+    WHEN wait_type='WRITELOG' THEN 'LOG'
+    WHEN wait_type LIKE 'LCK[_]%' THEN 'LOCKS'
+    WHEN wait_type IN ('CXPACKET','CXCONSUMER') THEN 'PARALLEL'
+    WHEN wait_type='SOS_SCHEDULER_YIELD' OR signal_pct>25 THEN 'CPU'
+    ELSE 'OTROS'
+  END AS categoria
+FROM waits
+ORDER BY wait_s DESC;
+
+/* I/O (ACCESO AL DISCO) por archivo, latencia de transacciones entre data/log */
+
+SELECT DB_NAME(vfs.database_id) AS db_name, mf.name AS file_name,
+       vfs.num_of_reads,
+       vfs.io_stall_read_ms,
+       CASE WHEN vfs.num_of_reads>0 THEN 1.0*vfs.io_stall_read_ms/vfs.num_of_reads END AS ms_per_read,
+       vfs.num_of_writes,
+       vfs.io_stall_write_ms,
+       CASE WHEN vfs.num_of_writes>0 THEN 1.0*vfs.io_stall_write_ms/vfs.num_of_writes END AS ms_per_write
+FROM sys.dm_io_virtual_file_stats(DB_ID(), NULL) vfs
+JOIN sys.master_files mf ON vfs.database_id=mf.database_id AND vfs.file_id=mf.file_id
+ORDER BY COALESCE(1.0*vfs.io_stall_read_ms/vfs.num_of_reads,0)
+       + COALESCE(1.0*vfs.io_stall_write_ms/vfs.num_of_writes,0) DESC;
+
+
+/* captura waits en vivo + síntomas (tempdb, spills, grants). */
+
+EXEC sp_BlitzFirst @Seconds=15, @ExpertMode=1;
+
+
+/* Carga A (Lectura con parameter sniffing) */
+
+EXEC dbo.sp_reporte_ventas_producto 1;
+
+EXEC sp_BlitzFirst @Seconds=15, @ExpertMode=1;   -- waits en vivo
+EXEC sp_BlitzCache @SortOrder='cpu', @Top=20;    -- top CPU
+EXEC sp_BlitzCache @SortOrder='reads', @Top=20;  -- top lecturas
+EXEC sp_BlitzWho;                                -- sesiones activas/bloqueos
