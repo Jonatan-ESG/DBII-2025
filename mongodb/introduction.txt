@@ -1,0 +1,25 @@
+use ecommerce
+
+db.customers.insertMany([
+  { firstName: "Ana", lastName: "López", email: "ana@example.com", phones: ["+50245657890", "+50244556372"]},
+  { firstName: "Luis", lastName: "Osorio", email: "luis@example.com"} 
+])
+
+db.createCollection("products")
+
+db.products.insertMany([
+  { sku:"KB-001", name: "Teclado", price: 150, brand: "Logitech", stock: 100, tags: ["gamer", "peripheral"] },
+  { sku:"MS-782", name: "Mouse", price: 90.5, brand: "Xtech", stock: 20, tags: ["peripheral"] }
+])
+
+db.products.find().toArray()
+
+db.products.find({ 
+  price: { $gte: 100 } 
+})
+
+db.customers.find({
+  lastName: /^L/
+})
+
+db.customers.find({ lastName: /^L/ }, { firstName:1, lastName: 1, email: 1 })
